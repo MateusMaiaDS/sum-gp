@@ -1,6 +1,9 @@
 # Loading all the files
 rm(list=ls())
 
+# Set the gp-sum as working directory
+
+
 # Verify the working directories
 source("rbase_files/sum_gp_scratch.R")
 source("fast_gp_multiple_tau.R")
