@@ -1,5 +1,6 @@
+# Loading packages and function
 library(Rcpp)
-sourceCpp(file = "gpbart/distmatrix_rcpp/src/dist_matrix.cpp")
+sourceCpp(file = "rbase_files/dist_matrix.cpp")
 
 # GP-function main
 gp_main <- function(x_train, y_train, x_star, tau, phi, nu, distance_matrix_train) {

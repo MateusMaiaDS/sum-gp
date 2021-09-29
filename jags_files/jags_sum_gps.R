@@ -12,37 +12,15 @@ library(R2jags)
 library(MASS) # Useful for mvrnorm function
 library(dplyr)
 library(tidyverse)
-# Maths -------------------------------------------------------------------
 
-# Notation:
-# y(x): Response variable at explanatory variable(s) value x, where x is continuous
-# y: vector of all observations
-# mu: Overall mean parameter
-# sigma_k: residual standard deviation parameter for GP k (sometimes known in the GP world as the nugget)
-# rho_k: decay parameter for the GP autocorrelation function for GP k
-# tau: GP standard deviation parameter for GP k - both fixed ot be the same
-
-# Likelihood:
-# y ~ N( sum_k gp_k, sigma^2)
-# gp_k ~ MVN(0, Sigma_k)
-# where MVN is the multivariate normal distribution and
-# Sigma_k is a covariance matrix with:
-# Sigma_{kij} = tau_k^2 * exp( -rho_k * (x_i - x_j)^2 )
-# The part exp( -rho_k * (x_i - x_j)^2 ) is known as the autocorrelation function
-
-# Prior
-# mu ~ N(0,100)
-# sigma ~ U(0,10)
-# tau_k ~ U(0,10)
-# rho_k ~ U(0.1, 5) # Need something reasonably informative here
 # Simulate data -----------------------------------------------------------
 
 # Some R code to simulate data
-N <- 10 # can take to N = 100 but fitting gets really slow ...
+N <- 25 # can take to N = 100 but fitting gets really slow ...
 true_mu <- 0
 true_tau <- 10 # Tau^-1 results the nugget term
 true_phi <- 0.1
-true_nu <- 0.01
+true_nu <- 0.1
 source("gpbart/motivation_simulation_examples.R")
 
 
@@ -66,11 +44,8 @@ set.seed(123)
 
 # Simulating from a sin function
 x <- seq(from = -pi,to = pi, length.out =  N)
-
-# y <- (true_tau^-1)*((true_nu^-1)*sin(x)+rnorm(n = N,sd = 1))
 y <- sqrt((true_tau^-1)*(true_nu^-1))*sin(x)+rnorm(n = N,sd = sqrt(true_tau^-1))
 
-plot(x,y,pch=20)
 # Jags code ---------------------------------------------------------------
 
 # Jags code to fit the model to the simulated data
@@ -115,7 +90,7 @@ model
 
 # Set up the data
 K <- 10
-prior_factor <- 1
+prior_factor <- 0.01
 # sd_hat <- naive_sigma(x = x, y = y)^(-2)
 
 model_data <- list(N = N, y = y, x = x, K = K, c = K, a_tau = (K^3)*true_tau*prior_factor, d_tau = prior_factor,
@@ -143,18 +118,10 @@ print(model_run)
 
 # I'm just going to use the mean values of the parameters
 tau <- model_run$BUGSoutput$mean$tau
-# tau <- true_tau
 mu <- model_run$BUGSoutput$mean$mu
 h <- model_run$BUGSoutput$mean$h
-# nu <- model_run$BUGSoutput$mean$nu
 nu <- model_data$nu
 phi <- model_run$BUGSoutput$mean$phi #model_run$BUGSoutput$mean$phi
-
-# The h predictions come from
-# gp_k_new | y ~ N( Sigma_k_new^T solve(Sigma, gp_k), Sigma_k_* - Sigma_k_new^T solve(Sigma_k, Sigma_k_new)
-# where
-# Sigma_k_new[i,j] = tau^2 * exp( -rho_j * (x_new_i - x_j)^2 )
-# Sigma_*[i,j] = tau^2 * exp( -rho_k * (x_new_i - x_new_j)^2 )
 
 # Now create predictions
 N_new <- 100
