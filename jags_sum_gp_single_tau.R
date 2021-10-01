@@ -16,12 +16,12 @@ library(tidyverse)
 # Simulate data -----------------------------------------------------------
 
 # Some R code to simulate data
-N <- 25 # can take to N = 100 but fitting gets really slow ...
+N <- 100 # can take to N = 100 but fitting gets really slow ...
 true_mu <- 0
 true_tau <- 10 # Tau^-1 results the nugget term
 true_phi <- 0.1
 true_nu <- 0.1
-source("gpbart/motivation_simulation_examples.R")
+# source("gpbart/motivation_simulation_examples.R")
 
 
 # # Creating a 1-D motivating example
@@ -55,11 +55,9 @@ model
 {
   # Likelihood
   for (i in 1:N) {
-    y[i] ~ dnorm(sum(h[i,1:K]), )
+    y[i] ~ dnorm(sum(h[i,1:K]), tau)
   }
-  
-  # tau0 <- sum(tau[1:K]^(-1))
-  sigma0 <- sum(pow(sigma[1:K],2))
+
   
   # Gaussian Processes
   for (k in 1:K) {
@@ -69,9 +67,9 @@ model
 
     for (i in 1:N) {
       m[i,k] <- mu[k]
-      Sigma[k,i,i] <- (nu[k]*tau[k])^(-1) + 0.00001
+      Sigma[k,i,i] <- ((nu[k])^(-1)) + 1e-12
       for(j in (i+1):N) {
-        Sigma[k,i,j] <- (nu[k]*tau[k])^(-1) * exp( - 1/(2*pow(phi[k],2)) * pow(x[i] - x[j], 2) )
+        Sigma[k,i,j] <- ((nu[k])^(-1)) * exp( - 1/(2*pow(phi[k],2)) * pow(x[i] - x[j], 2) )
         Sigma[k,j,i] <- Sigma[k,i,j]
       }
     }
@@ -79,26 +77,28 @@ model
 
   # Priors
   for (k in 1:K) {
-    # tau[k] ~ dgamma(a_tau, d_tau)
-    tau[k] ~ dgamma(a_tau, a_tau*L)
-    mu[k] ~ dnorm(0, tau[k]/c)
+    mu[k] ~ dnorm(0, tau_mu )
     phi[k] ~ dunif(0,10)
-    
   }
-  a_tau ~ dunif(0,5)
+  
+  
+  tau ~ dgamma(a_tau, d_tau)
+
 }
 "
 
 # Set up the data
-K <- 10
-prior_factor <- 100
+K <- 1
+prior_factor <- 0.001
 # sd_hat <- naive_sigma(x = x, y = y)^(-2)
+K_bart <- 2
+model_data <- list(N = N, y = y,
+                   x = x, K = K,
+                   a_tau = true_tau*prior_factor,
+                   d_tau = prior_factor,
+                   tau_mu = (K_bart^2*K)/((max(y)-min(y))^2 ),
+                   nu = rep(1,K))
 
-model_data <- list(N = N, y = y, x = x, K = K, c = K,
-                   # a_tau = (K)*true_tau*prior_factor, d_tau = prior_factor,
-                   # a_tau = 3/(2*K),d_tau = (3*3)/2,
-                   L = 1e4,
-                   nu = rep(1e2,K))
 
 # tau =  K*true_tau)
 # , phi = rep(1, 10), nu = rep(1, 10)
@@ -138,9 +138,9 @@ JAGS_h_new <- matrix(NA, ncol = model_data$K, nrow = N_new)
 JAGS_cov_h <- array(NA, dim = c(model_data$K, N, N))
 
 for (k in 1:model_data$K) {
-  JAGS_Sigma_new[k, , ] <- c((nu[k]^-1)*tau[k]^-1) * exp(-1 / (2 * phi[k]^2) * outer(x, x_new, "-")^2)
-  JAGS_Sigma_star[k, , ] <- c((nu[k]^-1)*tau[k]^-1) * exp(-1 / (2 * phi[k]^2) * outer(x_new, x_new, "-")^2)+ diag((1/tau[k]), N_new)
-  JAGS_Sigma[k, , ] <- c((nu[k]^-1)*tau[k]^-1) *  exp(-1 / (2 * phi[k]^2) * outer(x, x, "-")^2) + diag((1/tau[k]), N)
+  JAGS_Sigma_new[k, , ] <- c((nu[k]^-1)) * exp(-1 / (2 * phi[k]^2) * outer(x, x_new, "-")^2)
+  JAGS_Sigma_star[k, , ] <- c((nu[k]^-1)) * exp(-1 / (2 * phi[k]^2) * outer(x_new, x_new, "-")^2) #+ diag((1/tau), N_new)
+  JAGS_Sigma[k, , ] <- c((nu[k]^-1)) *  exp(-1 / (2 * phi[k]^2) * outer(x, x, "-")^2) + diag((1/tau), N)
   
   JAGS_h_new[, k] <- t(JAGS_Sigma_new[k, , ]) %*% solve(JAGS_Sigma[k, , ], h[, k] - mu[k]) + mu[k]
   JAGS_cov_h_new[k, , ] <- JAGS_Sigma_star[k, , ] - t(JAGS_Sigma_new[k, , ]) %*% solve(JAGS_Sigma[k, , ], JAGS_Sigma_new[k, , ])
@@ -148,7 +148,7 @@ for (k in 1:model_data$K) {
 
 
 JAGS_pred_mean <- rowSums(JAGS_h_new)
-JAGS_pred_sd <- sqrt(rowSums(apply(JAGS_cov_h_new, 1, diag)))
+JAGS_pred_sd <- sqrt(1/tau)
 JAGS_pred_sd_train <- sqrt(rowSums(apply(JAGS_Sigma, 1, diag)))
 
 # Plotting each tree dataset.
@@ -172,13 +172,13 @@ ggplot()+
                               y = JAGS_pred_mean),
             mapping = aes( x = x,
                            y = y), col = "red")+
-  
   geom_point(data = data.frame(x = x,
                                y = y), 
              mapping = aes(x = x, y = y), )+
-  geom_line(data = data.frame(x = x_new,
-                              y = sqrt(true_nu^(-1)*(true_tau^-1))*sin(x_new)), 
-            mapping = aes(x = x, y = y), col = "blue")+
+  # geom_line(data = data.frame(x = x_new,
+  #                             y = sqrt(true_nu^(-1)*(true_tau^-1))*sin(x_new)),
+  #           mapping = aes(x = x, y = y), col = "blue")+
+  ylim(c(-2,2))+
   ggtitle(paste("JAGS"))+
   theme_classic()
 

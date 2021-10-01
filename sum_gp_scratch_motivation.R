@@ -11,7 +11,7 @@ source("fast_gp_multiple_tau.R")
 
 # Generating the synthetic data
 # Some R code to simulate data
-N <- 25 # can take to N = 100 but fitting gets really slow ...
+N <- 10 # can take to N = 100 but fitting gets really slow ...
 mu <- 0 # Mu value
 tau <- true_tau <- 10 # Tau^-1 results the nugget term
 phi <- 0.1 # Phi main value
@@ -19,7 +19,7 @@ nu <- true_nu <- 0.1 # Nu main value
 n_iter <- 1000 # Number of MCMC samples
 K <- 10 # Number of trees
 # Setting other parameters
-prior_factor <- 0.01 # This prior factor here is used to control the variance over \tau
+prior_factor <- 100 # This prior factor here is used to control the variance over \tau
 a_tau <- (K^3)*true_tau * prior_factor
 d_tau <- prior_factor
 nu_vector <- rep(nu, K)
@@ -39,7 +39,7 @@ predictions <- matrix(0,
 set.seed(123)
 x <- seq(from = -pi, to = pi, length.out = N) %>% as.matrix()
 y <- sqrt((true_tau^-1) * (true_nu^-1)) * sin(x) + rnorm(n = N, sd = sqrt(true_tau^-1)) %>% as.matrix()
-
+set.seed(NULL)
 # plot(x,y,pch=20)
 
 # Now create predictions
@@ -55,7 +55,7 @@ gp_sum_mod <- gp_sum(
   K = K,
   tau = tau,
   mu = mu,
-  nu_vector = rep(0.1, K),
+  nu_vector = rep(1e-2, K),
   phi_vector = rep(0.1, K),
   predictions = predictions,
   n_iter = n_iter,
