@@ -88,7 +88,7 @@ model
 "
 
 # Set up the data
-K <- 1
+K <- 5
 prior_factor <- 0.001
 # sd_hat <- naive_sigma(x = x, y = y)^(-2)
 K_bart <- 2
@@ -178,7 +178,7 @@ ggplot()+
   # geom_line(data = data.frame(x = x_new,
   #                             y = sqrt(true_nu^(-1)*(true_tau^-1))*sin(x_new)),
   #           mapping = aes(x = x, y = y), col = "blue")+
-  ylim(c(-2,2))+
+  # ylim(c(-2,2))+
   ggtitle(paste("JAGS"))+
   theme_classic()
 
